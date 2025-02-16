@@ -1,0 +1,15 @@
+# ignore environment variables file
+.env
+
+# ignore local database file
+query_logs.db
+
+# ignore jupyter notebook checkpoints
+.ipynb_checkpoints/
+
+# ignore python cache files
+__pycache__/
+*.pyc
+
+# ignore any json files if you do not wish to commit them
+*.json
