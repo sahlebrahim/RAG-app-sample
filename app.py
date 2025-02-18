@@ -179,12 +179,10 @@ def cohere_rerank(query, chunks, top_n=3):
         indexed_chunks = {i: chunk for i, chunk in enumerate(chunks)}
         # build a new list in the order cohere provides
         reranked_chunks = []
-        for doc in results.reranked:
+        for doc in results.documents:
             # doc.index is the original index
             # doc.relevance_score is the new score
-            chunk = indexed_chunks[doc.index]
-            chunk["rerank_score"] = doc.score
-            reranked_chunks.append(chunk)
+            reranked_chunks.append(indexed_chunks[doc.index])
 
         # now we have a reranked list from most relevant to least
         return reranked_chunks[:top_n]
@@ -349,8 +347,7 @@ if user_input := st.chat_input("type your query"):
     # optionally show retrieved chunks
     with st.expander("retrieved context from pinecone"):
         for idx, chunk in enumerate(retrieved_chunks):
-            score = chunk.get("rerank_score", "n/a")
-            st.write(f"chunk {idx+1} score {score} title {chunk['title']} page {chunk['page_number']}")
+            st.write(f"chunk {idx+1} {chunk['title']} page {chunk['page_number']}")
             st.text_area("content", chunk["content"], height=150)
 
     # show timing details
@@ -382,5 +379,5 @@ if "latest_query" in st.session_state and "latest_response" in st.session_state:
                     st.session_state.latest_response_time
                 )
                 st.success("feedback saved thank you for helping us improve")
-                st.session_state["feedback_input"] = ""  # reset the text area
+                st.session_state["feedback_input"] = ""
                 
