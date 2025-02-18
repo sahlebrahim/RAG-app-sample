@@ -5,3 +5,5 @@ pinecone-client
 openai
 sentence-transformers
 python-dotenv
+psycopg2-binary
+cohere
