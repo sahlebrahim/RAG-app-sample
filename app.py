@@ -152,44 +152,30 @@ def get_embedding(text):
     return embedder.encode(text).tolist()
 
 def cohere_rerank(query, chunks, top_n=3):
-    """
-    takes a query and a list of chunk dicts, calls cohere rerank,
-    and returns the top n chunks in sorted order
-    each chunk is a dict with "content" plus any other metadata
-    """
     if not co:
-        # if cohere is not configured, just return original chunks
         return chunks[:top_n]
 
-    # cohere rerank expects a list of strings or structured docs
-    # for simplicity, we'll just pass chunk["content"] as the doc
     docs = [c["content"] for c in chunks]
-
     try:
-        # model = "rerank-v3.5" or any other cohere model
-        results = co.rerank(
+        result = co.rerank(
             model="rerank-v3.5",
             query=query,
             documents=docs,
-            top_n=len(chunks),  # rerank all
+            top_n=len(chunks)
         )
-        # results.documents is a list of reranked documents with .index, .relevance_score
-        # we can reorder chunks by these indexes
-        # create a map: old_index -> chunk
+        # result.results is a list of V2RerankResponseResultsItem
         indexed_chunks = {i: chunk for i, chunk in enumerate(chunks)}
-        # build a new list in the order cohere provides
-        reranked_chunks = []
-        for doc in results.documents:
-            # doc.index is the original index
-            # doc.relevance_score is the new score
-            reranked_chunks.append(indexed_chunks[doc.index])
-
-        # now we have a reranked list from most relevant to least
-        return reranked_chunks[:top_n]
+        reranked = []
+        for item in result.results:
+            i = item.index
+            score = item.relevance_score
+            chunk = indexed_chunks[i]
+            chunk["rerank_score"] = score
+            reranked.append(chunk)
+        return reranked[:top_n]
 
     except Exception as e:
-        st.warning(f"cohere rerank error: {e}")
-        # fallback to original top_n
+        st.warning(f"cohere rerank error {e}")
         return chunks[:top_n]
 
 def search_pinecone_with_timing(query, top_k=3):
