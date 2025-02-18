@@ -92,49 +92,39 @@ def get_embedding(text):
     return embedder.encode(text).tolist()
 
 def cohere_rerank(query, chunks, top_n=3):
-    # if no cohere client, return the top_n from the original chunks
     if not co:
         return chunks[:top_n]
 
-    # each chunk is a dict with "content"
-    # cohere v2 docs recommend passing structured data as yaml, but we can keep it simple
     docs = [c["content"] for c in chunks]
 
     try:
         # call cohere v2 rerank
-        # it returns a dict with a "results" list, each having { "index": int, "relevance_score": float }
-        results_obj = co.rerank(
+        # the returned object is a V2RerankResponse, not a dict
+        result = co.rerank(
             model="rerank-v3.5",
             query=query,
             documents=docs,
-            top_n=len(chunks)  # rerank all, then we'll slice top_n
+            top_n=len(chunks)
         )
 
-        # "results" is the list of reranked info
-        # each item looks like {"index": 3, "relevance_score": 0.99}
-        ranked_list = results_obj["results"]
+        # v2 typically has a .results attribute, which is a list of objects
+        # each item has "index" and "relevance_score"
+        ranked_list = result.results  # not result["results"]
 
-        # map original indexes to the chunk dict
         indexed_chunks = {i: chunk for i, chunk in enumerate(chunks)}
-
         reranked = []
         for item in ranked_list:
-            i = item["index"]
+            i = item["index"]  # the original doc index
             score = item["relevance_score"]
-            # get the original chunk
             chunk = indexed_chunks[i]
-            # store the cohere score if you want to see it in your ui
             chunk["rerank_score"] = score
             reranked.append(chunk)
 
-        # return the top_n most relevant
         return reranked[:top_n]
 
     except Exception as e:
         st.warning(f"cohere rerank error {e}")
-        # fallback to original top_n if anything fails
         return chunks[:top_n]
-
 
 def search_pinecone_with_timing(query, top_k=3):
     start_embedding = time.perf_counter()
