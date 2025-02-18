@@ -383,4 +383,4 @@ if "latest_query" in st.session_state and "latest_response" in st.session_state:
                 )
                 st.success("feedback saved thank you for helping us improve")
                 st.session_state["feedback_input"] = ""  # reset the text area
-                st.experimental_rerun()
+                
