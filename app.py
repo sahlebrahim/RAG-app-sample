@@ -179,12 +179,12 @@ def cohere_rerank(query, chunks, top_n=3):
         indexed_chunks = {i: chunk for i, chunk in enumerate(chunks)}
         # build a new list in the order cohere provides
         reranked_chunks = []
-        for doc in results.documents:
+        for doc in results.reranked:
             # doc.index is the original index
             # doc.relevance_score is the new score
             chunk = indexed_chunks[doc.index]
-            chunk["rerank_score"] = doc.relevance_score
-            reranked_chunks.append(indexed_chunks[doc.index])
+            chunk["rerank_score"] = doc.score
+            reranked_chunks.append(chunk)
 
         # now we have a reranked list from most relevant to least
         return reranked_chunks[:top_n]
