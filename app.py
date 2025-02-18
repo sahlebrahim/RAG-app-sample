@@ -6,54 +6,42 @@ import os
 import time
 import uuid
 import streamlit as st
+import pandas as pd  # new import for interactive table
 from dotenv import load_dotenv
 from datetime import datetime
 
-# new: psycopg2 for postgres
 import psycopg2
 import psycopg2.extras
 
-# new: cohere for reranking
 import cohere
-
-# pinecone
 from pinecone import Pinecone
-
-# openai
 from openai import OpenAI
-
-# sentence transformers
 from sentence_transformers import SentenceTransformer
 
 #########################
 # 1) load environment variables
 #########################
 load_dotenv()
-
-#########################
-# 2) set up streamlit page
-#########################
 st.set_page_config(page_title="sales playbook chat assistant", layout="wide")
 
 #########################
-# 3) cohere client (for reranking)
+# 2) cohere client (for reranking)
 #########################
 cohere_api_key = os.getenv("COHERE_API_KEY")
 if cohere_api_key is None:
     st.warning("cohere api key not set (cohere_api_key). reranking will not work.")
     co = None
 else:
-    # use cohere.ClientV2 if that is your version, or cohere.Client otherwise
     co = cohere.ClientV2(api_key=cohere_api_key)
 
 #########################
-# 4) openai client
+# 3) openai client
 #########################
 openai_api_key = os.getenv("OPENAI_API_KEY")
 client = OpenAI(api_key=openai_api_key)
 
 #########################
-# 5) pinecone client
+# 4) pinecone client
 #########################
 pinecone_api_key = os.getenv("PINECONE_API_KEY")
 pc = Pinecone(api_key=pinecone_api_key)
@@ -61,26 +49,20 @@ index_name = "document-index"
 index = pc.Index(index_name)
 
 #########################
-# 6) sentence transformer model
+# 5) sentence transformer model
 #########################
 embedder = SentenceTransformer("sentence-transformers/all-MiniLM-L6-v2")
 
 #########################
-# 7) connect to heroku postgres
+# 6) connect to heroku postgres
 #########################
 def get_db_connection():
-    """
-    connects to postgres using the heroku database_url env var
-    e.g. heroku config:set DATABASE_URL=...
-    """
     db_url = os.getenv("DATABASE_URL")
     if not db_url:
         st.error("DATABASE_URL not set. please configure heroku postgres.")
-    # sslmode=require is typical on heroku
     conn = psycopg2.connect(db_url, sslmode="require")
     return conn
 
-# create the logs table if it does not exist
 def init_db():
     try:
         conn = get_db_connection()
@@ -105,12 +87,9 @@ def init_db():
 init_db()
 
 #########################
-# 8) helper functions for database
+# 7) helper functions for database
 #########################
 def save_query_to_db(query, response, comment, model, response_time):
-    """
-    inserts a new record into the query_logs table
-    """
     try:
         conn = get_db_connection()
         cur = conn.cursor()
@@ -126,9 +105,6 @@ def save_query_to_db(query, response, comment, model, response_time):
         st.error(f"database insert error: {e}")
 
 def get_all_logs():
-    """
-    retrieves all logs from query_logs
-    """
     try:
         conn = get_db_connection()
         cur = conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
@@ -142,13 +118,9 @@ def get_all_logs():
         return []
 
 #########################
-# 9) pinecone + cohere rerank
+# 8) pinecone + cohere rerank
 #########################
-
 def get_embedding(text):
-    """
-    uses sentence transformer to generate embeddings
-    """
     return embedder.encode(text).tolist()
 
 def cohere_rerank(query, chunks, top_n=3):
@@ -163,7 +135,6 @@ def cohere_rerank(query, chunks, top_n=3):
             documents=docs,
             top_n=len(chunks)
         )
-        # result.results is a list of V2RerankResponseResultsItem
         indexed_chunks = {i: chunk for i, chunk in enumerate(chunks)}
         reranked = []
         for item in result.results:
@@ -179,20 +150,11 @@ def cohere_rerank(query, chunks, top_n=3):
         return chunks[:top_n]
 
 def search_pinecone_with_timing(query, top_k=3):
-    """
-    1) do embedding
-    2) query pinecone for top 15
-    3) cohere rerank them
-    4) slice final top_k
-    returns final chunks plus timing details
-    """
     start_embedding = time.perf_counter()
     query_embedding = get_embedding(query)
     embedding_time = time.perf_counter() - start_embedding
 
-    # let's fetch 15 from pinecone, then rerank down to top_k
     pinecone_fetch = 15
-
     start_pinecone = time.perf_counter()
     results = index.query(
         vector=query_embedding,
@@ -214,16 +176,12 @@ def search_pinecone_with_timing(query, top_k=3):
                 "content": metadata.get("content", "no content available")
             })
 
-    # now cohere rerank
-    # cohere_rerank will return the top_k final
     final_chunks = cohere_rerank(query, all_chunks, top_n=top_k)
-
     return final_chunks, embedding_time, pinecone_time
 
 #########################
-# 10) build prompt + query openai
+# 9) build prompt + query openai
 #########################
-
 def build_prompt(query, chunks):
     context = "\n\n".join(
         [f"source {c['source']} title {c['title']} page {c['page_number']} content \n{c['content']}"
@@ -247,10 +205,7 @@ def query_openai(model, prompt):
             messages=[
                 {
                     "role": "system",
-                    "content": (
-                        "you are a helpful assistant use the provided document chunks "
-                        "to answer the users question accurately"
-                    ),
+                    "content": "you are a helpful assistant use the provided document chunks to answer the users question accurately"
                 },
                 {"role": "user", "content": prompt},
             ],
@@ -262,82 +217,78 @@ def query_openai(model, prompt):
         return "openai api error please try again"
 
 #########################
-# 11) streamlit ui
+# 10) streamlit ui
 #########################
-
 st.title("sales playbook chat assistant")
-st.caption("chat with your sales playbook using pinecone, cohere (for reranking), and openai")
+st.caption("chat with your sales playbook using pinecone cohere and openai")
 
-# model selection
 model_option = st.sidebar.selectbox(
     "select openai model",
     options=["gpt-4o", "gpt-4o-mini"],
     index=0
 )
 
-# initialize chat message history
 if "messages" not in st.session_state:
     st.session_state.messages = []
 
-# display message history
 for msg in st.session_state.messages:
     with st.chat_message(msg["role"]):
         st.markdown(msg["content"])
 
-# show logs
+#########################
+# 11) logs viewer with interactive dataframe
+#########################
 with st.expander("view query logs live"):
     if st.button("refresh logs"):
         pass  # triggers rerun
+
     logs = get_all_logs()
     if not logs:
         st.info("no query logs available")
     else:
-        for log in logs:
-            st.write(f"timestamp {log['timestamp']}")
-            st.write(f"query {log['query']}")
-            st.write(f"response {log['response']}")
-            st.write(f"comment {log['comment']}")
-            st.write(f"model {log['llm_model']} time taken {log['response_time']:.2f} sec")
-            st.markdown("---")
+        # convert each row (a psycopg2 row) into a dict, then build a dataframe
+        df = pd.DataFrame([dict(r) for r in logs])
 
-# user query
+        # optional filter by query text
+        search_term = st.text_input("filter logs by query text")
+        if search_term:
+            df = df[df["query"].str.contains(search_term, case=False, na=False)]
+
+        st.dataframe(df)  # interactive table
+
+#########################
+# 12) main user query
+#########################
 if user_input := st.chat_input("type your query"):
     overall_start = time.perf_counter()
 
-    # show user query
     st.session_state.messages.append({"role": "user", "content": user_input})
     with st.chat_message("user"):
         st.markdown(user_input)
 
-    # retrieve chunks (top 3 after cohere rerank)
     with st.spinner("searching document database..."):
         retrieved_chunks, embedding_time, pinecone_time = search_pinecone_with_timing(user_input, top_k=3)
 
-    # build prompt
     start_prompt = time.perf_counter()
     prompt = build_prompt(user_input, retrieved_chunks)
     prompt_time = time.perf_counter() - start_prompt
 
-    # query openai
     start_model = time.perf_counter()
     assistant_response = query_openai(model_option, prompt)
     model_time = time.perf_counter() - start_model
 
     overall_time = time.perf_counter() - overall_start
 
-    # show assistant response
     st.session_state.messages.append({"role": "assistant", "content": assistant_response})
     with st.chat_message("assistant"):
         st.markdown(assistant_response)
 
-    # optionally show retrieved chunks
     with st.expander("retrieved context from pinecone"):
         for idx, chunk in enumerate(retrieved_chunks):
             score = chunk.get("rerank_score", "n/a")
             st.write(f"chunk {idx+1} score {score} title {chunk['title']} page {chunk['page_number']}")
             st.text_area("content", chunk["content"], height=150)
 
-    # show timing details
     with st.expander("timing details"):
         st.write(f"embedding time {embedding_time:.2f} sec")
         st.write(f"pinecone search time {pinecone_time:.2f} sec")
@@ -345,13 +296,14 @@ if user_input := st.chat_input("type your query"):
         st.write(f"model query time {model_time:.2f} sec")
         st.write(f"overall time {overall_time:.2f} sec")
 
-    # store latest query in session for feedback
     st.session_state.latest_query = user_input
     st.session_state.latest_response = assistant_response
     st.session_state.latest_model = model_option
     st.session_state.latest_response_time = overall_time
 
-# feedback form
+#########################
+# 13) feedback form
+#########################
 if "latest_query" in st.session_state and "latest_response" in st.session_state:
     with st.expander("provide feedback on the latest response"):
         with st.form("feedback_form"):
@@ -366,3 +318,4 @@ if "latest_query" in st.session_state and "latest_response" in st.session_state:
                     st.session_state.latest_response_time
                 )
                 st.success("feedback saved thank you for helping us improve")
+                st.session_state["feedback_text"] = ""
