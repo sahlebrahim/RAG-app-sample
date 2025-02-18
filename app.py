@@ -333,7 +333,8 @@ if user_input := st.chat_input("type your query"):
     # optionally show retrieved chunks
     with st.expander("retrieved context from pinecone"):
         for idx, chunk in enumerate(retrieved_chunks):
-            st.write(f"chunk {idx+1} {chunk['title']} page {chunk['page_number']}")
+            score = chunk.get("rerank_score", "n/a")
+            st.write(f"chunk {idx+1} score {score} title {chunk['title']} page {chunk['page_number']}")
             st.text_area("content", chunk["content"], height=150)
 
     # show timing details
