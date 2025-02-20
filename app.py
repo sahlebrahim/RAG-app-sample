@@ -149,7 +149,7 @@ def cohere_rerank(query, chunks, top_n=5):
         st.warning(f"cohere rerank error {e}")
         return chunks[:top_n]
 
-def search_pinecone_with_timing(query, top_k=3):
+def search_pinecone_with_timing(query, top_k=5):
     start_embedding = time.perf_counter()
     query_embedding = get_embedding(query)
     embedding_time = time.perf_counter() - start_embedding
@@ -267,7 +267,7 @@ if user_input := st.chat_input("type your query"):
         st.markdown(user_input)
 
     with st.spinner("searching document database..."):
-        retrieved_chunks, embedding_time, pinecone_time = search_pinecone_with_timing(user_input, top_k=3)
+        retrieved_chunks, embedding_time, pinecone_time = search_pinecone_with_timing(user_input, top_k=5)
 
     start_prompt = time.perf_counter()
     prompt = build_prompt(user_input, retrieved_chunks)
