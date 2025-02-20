@@ -1,6 +1,6 @@
-#########################
+
 # sales playbook chat assistant with fixed logging (postgres + cohere rerank)
-#########################
+
 
 import os
 import time
@@ -18,15 +18,15 @@ from pinecone import Pinecone
 from openai import OpenAI
 from sentence_transformers import SentenceTransformer
 
-#########################
+
 # 1) load environment variables
-#########################
+
 load_dotenv()
 st.set_page_config(page_title="sales playbook chat assistant", layout="wide")
 
-#########################
+
 # 2) cohere client (for reranking)
-#########################
+
 cohere_api_key = os.getenv("COHERE_API_KEY")
 if cohere_api_key is None:
     st.warning("cohere api key not set (cohere_api_key). reranking will not work.")
@@ -34,28 +34,28 @@ if cohere_api_key is None:
 else:
     co = cohere.ClientV2(api_key=cohere_api_key)
 
-#########################
+
 # 3) openai client
-#########################
+
 openai_api_key = os.getenv("OPENAI_API_KEY")
 client = OpenAI(api_key=openai_api_key)
 
-#########################
+
 # 4) pinecone client
-#########################
+
 pinecone_api_key = os.getenv("PINECONE_API_KEY")
 pc = Pinecone(api_key=pinecone_api_key)
 index_name = "document-index-4"
 index = pc.Index(index_name)
 
-#########################
+
 # 5) sentence transformer model
-#########################
+
 embedder = SentenceTransformer("sentence-transformers/all-MiniLM-L6-v2")
 
-#########################
+
 # 6) connect to heroku postgres
-#########################
+
 def get_db_connection():
     db_url = os.getenv("DATABASE_URL")
     if not db_url:
@@ -86,9 +86,9 @@ def init_db():
 
 init_db()
 
-#########################
+
 # 7) helper functions for database
-#########################
+
 def save_query_to_db(query, response, comment, model, response_time):
     try:
         conn = get_db_connection()
@@ -117,9 +117,9 @@ def get_all_logs():
         st.error(f"database retrieval error: {e}")
         return []
 
-#########################
+
 # 8) pinecone + cohere rerank
-#########################
+
 def get_embedding(text):
     return embedder.encode(text).tolist()
 
@@ -179,9 +179,9 @@ def search_pinecone_with_timing(query, top_k=5):
     final_chunks = cohere_rerank(query, all_chunks, top_n=top_k)
     return final_chunks, embedding_time, pinecone_time
 
-#########################
+
 # 9) build prompt + query openai
-#########################
+
 def build_prompt(query, chunks):
     context = "\n\n".join(
         [f"source {c['source']} title {c['title']} page {c['page_number']} content \n{c['content']}"
@@ -216,9 +216,9 @@ def query_openai(model, prompt):
         st.error(f"openai api error {e}")
         return "openai api error please try again"
 
-#########################
+
 # 10) streamlit ui
-#########################
+
 st.title("sales playbook chat assistant")
 st.caption("chat with your sales playbook using pinecone cohere and openai")
 
@@ -235,9 +235,9 @@ for msg in st.session_state.messages:
     with st.chat_message(msg["role"]):
         st.markdown(msg["content"])
 
-#########################
+
 # 11) logs viewer with interactive dataframe
-#########################
+
 with st.expander("view query logs live"):
     if st.button("refresh logs"):
         pass  # triggers rerun
@@ -256,9 +256,9 @@ with st.expander("view query logs live"):
 
         st.dataframe(df)  # interactive table
 
-#########################
+
 # 12) main user query
-#########################
+
 def clear_text():
     st.session_state.my_text = st.session_state.widget
     st.session_state.widget = ""
@@ -304,9 +304,9 @@ if user_input := st.chat_input("type your query"):
     st.session_state.latest_model = model_option
     st.session_state.latest_response_time = overall_time
 
-#########################
+
 # 13) feedback form
-#########################
+
 def clear_feedback_text():
     st.session_state["feedback_text"] = ""
 if "latest_query" in st.session_state and "latest_response" in st.session_state:
