@@ -45,7 +45,7 @@ client = OpenAI(api_key=openai_api_key)
 #########################
 pinecone_api_key = os.getenv("PINECONE_API_KEY")
 pc = Pinecone(api_key=pinecone_api_key)
-index_name = "document-index"
+index_name = "document-index-2"
 index = pc.Index(index_name)
 
 #########################
@@ -170,8 +170,8 @@ def search_pinecone_with_timing(query, top_k=3):
             metadata = match["metadata"]
             all_chunks.append({
                 "source": metadata.get("source", "unknown"),
-                "title": metadata.get("title", ""),
-                "page_number": metadata.get("page_number", ""),
+                "title": metadata.get("heading", ""),
+                "page_number": metadata.get("page", ""),
                 "score": match["score"],
                 "content": metadata.get("content", "no content available")
             })
