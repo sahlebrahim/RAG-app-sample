@@ -259,6 +259,9 @@ with st.expander("view query logs live"):
 #########################
 # 12) main user query
 #########################
+def clear_text():
+    st.session_state.my_text = st.session_state.widget
+    st.session_state.widget = ""
 if user_input := st.chat_input("type your query"):
     overall_start = time.perf_counter()
 
@@ -304,11 +307,13 @@ if user_input := st.chat_input("type your query"):
 #########################
 # 13) feedback form
 #########################
+def clear_feedback_text():
+    st.session_state["feedback_text"] = ""
 if "latest_query" in st.session_state and "latest_response" in st.session_state:
     with st.expander("provide feedback on the latest response"):
         with st.form("feedback_form"):
-            feedback = st.text_area("your comment or feedback on this response")
-            submitted = st.form_submit_button("submit feedback")
+            feedback = st.text_area("your comment or feedback on this response",key ="feedback_text")
+            submitted = st.form_submit_button("submit feedback",on_click=clear_feedback_text)
             if submitted:
                 save_query_to_db(
                     st.session_state.latest_query,
@@ -318,4 +323,4 @@ if "latest_query" in st.session_state and "latest_response" in st.session_state:
                     st.session_state.latest_response_time
                 )
                 st.success("feedback saved thank you for helping us improve")
-                st.session_state["feedback_text"] = ""
+                #st.session_state["feedback_text"] = ""
