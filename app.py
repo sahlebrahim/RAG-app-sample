@@ -123,7 +123,7 @@ def get_all_logs():
 def get_embedding(text):
     return embedder.encode(text).tolist()
 
-def cohere_rerank(query, chunks, top_n=3):
+def cohere_rerank(query, chunks, top_n=5):
     if not co:
         return chunks[:top_n]
 
